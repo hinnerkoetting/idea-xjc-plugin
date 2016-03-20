@@ -1,15 +1,18 @@
 package de.oetting.idea.idea_xjc_plugin.xjc;
 
+import com.intellij.openapi.diagnostic.Logger;
 import de.oetting.idea.idea_xjc_plugin.util.Guard;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+
+import static com.intellij.openapi.diagnostic.Logger.*;
 
 public class XjcExecutor {
 
-    private static final com.intellij.openapi.diagnostic.Logger LOGGER = com.intellij.openapi.diagnostic.Logger.getInstance(XjcExecutor.class);
+    private static final Logger LOGGER = getInstance(XjcExecutor.class);
 
     public void start(XjcStartOptions options) {
         validate(options);
@@ -60,10 +63,23 @@ public class XjcExecutor {
         LOGGER.info("Using command " + command);
         try {
             File sourcedir = options.getSrcDirectory() == null ? null : new File(options.getSrcDirectory());
-            Runtime.getRuntime().exec(command, new String[0], sourcedir);
-        } catch (IOException e1) {
+            Process exec = Runtime.getRuntime().exec(command, new String[0], sourcedir);
+            int exitValue = exec.waitFor();
+            logProgramOutput(exec);
+            if (exitValue != 0)
+                throw new RuntimeException("xjc failed. RC is " + exitValue);
+        } catch (Exception e1) {
             throw new RuntimeException(e1);
         }
+    }
+
+    private void logProgramOutput(Process exec) throws IOException {
+        String line;
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(exec.getInputStream()) );
+        while ((line = in.readLine()) != null)
+            LOGGER.error(line);
+        in.close();
     }
 
 }

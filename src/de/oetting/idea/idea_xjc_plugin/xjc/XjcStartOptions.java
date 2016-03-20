@@ -1,6 +1,7 @@
 package de.oetting.idea.idea_xjc_plugin.xjc;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class XjcStartOptions {
@@ -30,7 +31,11 @@ public class XjcStartOptions {
     }
 
     public List<String> getBindingFiles() {
-        return bindingFiles;
+        return Collections.unmodifiableList(bindingFiles);
+    }
+
+    public void addBindingFiles(List<String> bindingFiles) {
+        this.bindingFiles.addAll(bindingFiles);
     }
 
     public String getTargetDir() {
