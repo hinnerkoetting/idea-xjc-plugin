@@ -9,24 +9,27 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
-import de.oetting.idea.idea_xjc_plugin.jaxb2mavenplugin.PluginInformationExtractor;
-import de.oetting.idea.idea_xjc_plugin.xjc.XjcExecutor;
+import de.oetting.idea.idea_xjc_plugin.jaxb2mavenplugin.PluginInformationExtraction;
+import de.oetting.idea.idea_xjc_plugin.jaxb2mavenplugin.MavenXjcSettings;
+import de.oetting.idea.idea_xjc_plugin.xjc.XjcExecution;
 import de.oetting.idea.idea_xjc_plugin.xjc.XjcStartOptions;
 import de.oetting.mavenmodels.Model;
 import de.oetting.mavenmodels.Plugin;
 
-import javax.security.auth.login.Configuration;
-import javax.xml.bind.Element;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.intellij.openapi.diagnostic.Logger.getInstance;
 
 public class GenerateXsd extends AnAction {
 
-    private static final Logger LOGGER = getInstance(XjcExecutor.class);
+    private static final Logger LOGGER = getInstance(XjcExecution.class);
 
     @Override
     public void actionPerformed(AnActionEvent e) {
@@ -35,7 +38,7 @@ public class GenerateXsd extends AnAction {
             return;
         }
         XjcStartOptions options = collectOptions(e);
-        new XjcExecutor().start(options);
+        new XjcExecution().start(options);
     }
 
     private boolean isValidState(AnActionEvent e) {
@@ -57,6 +60,7 @@ public class GenerateXsd extends AnAction {
         options.setXjcCommandName("xjc");
         options.setSrcFile(getCurrentlyOpenedFile(e).getName());
         options.setSrcDirectory(getCurrentlyOpenedFile(e).getParent().getPath());
+        options.setExecutionDirectory(e.getProject().getBaseDir().getPath());
         collectOptionsFromPom(options, e);
         return options;
     }
@@ -68,34 +72,58 @@ public class GenerateXsd extends AnAction {
             LOGGER.info("Cannot read Properties from pom.xml. Values from pom.xml are used to set useful default values");
             return;
         }
-        analysePom(options, pom);
-
+        analysePom(options, pom, e);
     }
 
-    private void analysePom(XjcStartOptions options, File pom) {
+    private void analysePom(XjcStartOptions options, File pom, AnActionEvent e) {
         try {
             JAXBContext jaxbContext = JAXBContext.newInstance(Model.class);
             JAXBElement element = (JAXBElement) jaxbContext.createUnmarshaller().unmarshal(pom);
-            analysePomXml(options, (Model) element.getValue());
+            analysePomXml(options, (Model) element.getValue(), e);
         } catch (JAXBException e1) {
             throw new RuntimeException(e1);
         }
     }
 
-    private void analysePomXml(XjcStartOptions options,Model model) {
+    private void analysePomXml(XjcStartOptions options, Model model, AnActionEvent e) {
         for (Plugin plugin: model.getBuild().getPlugins().getPlugin()) {
             if (isXjcPlugin(plugin)) {
-                analysePlugin(options, plugin);
+                MavenXjcSettings mavenSettings = analysePlugin(plugin);
+                applyMavenSettings(options, mavenSettings, e);
             }
         }
     }
 
-    private void analysePlugin(XjcStartOptions options, Plugin plugin) {
-        new PluginInformationExtractor().extractInformation(options, plugin);
+    private void applyMavenSettings(XjcStartOptions options, MavenXjcSettings mavenSettings, AnActionEvent e) {
+        options.setTargetDir(e.getProject().getBasePath() + "/" + mavenSettings.getTargetDir());
+        options.setTargetPackage(mavenSettings.getTargetPackage());
+        options.addBindingFiles(findBindingFiles(mavenSettings, e));
+        options.addArgs(mavenSettings.getArgs());
+    }
+
+    private List<String> findBindingFiles(MavenXjcSettings mavenSettings, AnActionEvent event) {
+        List<String> result = new ArrayList<>();
+        Path folder = Paths.get(event.getProject().getBasePath() + "/" + mavenSettings.getBindingDirectory());
+
+        for (String bindingFile: mavenSettings.getBindingFiles()) {
+            Finder finder = new Finder(folder, bindingFile);
+            try {
+                Files.walkFileTree(folder, finder);
+                result.addAll(finder.getMatchedFiles());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        LOGGER.info("Found the following binding-files" + result.toString());
+        return result;
+    }
+
+    private MavenXjcSettings analysePlugin(Plugin plugin) {
+        return new PluginInformationExtraction().extractInformation(plugin);
     }
 
     private boolean isXjcPlugin(Plugin plugin) {
-        return plugin.getArtifactId().equals("jaxb2-maven-plugin");
+        return plugin.getArtifactId().equals("maven-jaxb2-plugin");
     }
 
     private VirtualFile getCurrentlyOpenedFile(AnActionEvent e) {

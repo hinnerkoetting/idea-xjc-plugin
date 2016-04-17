@@ -13,6 +13,8 @@ public class XjcStartOptions {
     private String targetPackage;
     private String srcFile;
     private String srcDirectory;
+    private List<String> args = new ArrayList<>();
+    private String executionDirectory;
 
     public String getXjcCommandName() {
         return xjcCommandName;
@@ -32,10 +34,6 @@ public class XjcStartOptions {
 
     public List<String> getBindingFiles() {
         return Collections.unmodifiableList(bindingFiles);
-    }
-
-    public void addBindingFiles(List<String> bindingFiles) {
-        this.bindingFiles.addAll(bindingFiles);
     }
 
     public String getTargetDir() {
@@ -70,6 +68,26 @@ public class XjcStartOptions {
         this.srcDirectory = srcDirectory;
     }
 
+    public List<String> getArgs() {
+        return Collections.unmodifiableList(args);
+    }
+
+    public void addBindingFiles(List<String> bindingFiles) {
+        this.bindingFiles.addAll(bindingFiles);
+    }
+
+    public void addArgs(List<String> args) {
+        this.args.addAll(args);
+    }
+
+    public String getExecutionDirectory() {
+        return executionDirectory;
+    }
+
+    public void setExecutionDirectory(String executionDirectory) {
+        this.executionDirectory = executionDirectory;
+    }
+
     @Override
     public String toString() {
         return "XjcStartOptions{" +
@@ -80,7 +98,8 @@ public class XjcStartOptions {
                 ", targetPackage='" + targetPackage + '\'' +
                 ", srcFile='" + srcFile + '\'' +
                 ", srcDirectory='" + srcDirectory + '\'' +
+                ", args=" + args +
+                ", executionDirectory='" + executionDirectory + '\'' +
                 '}';
     }
-
 }
