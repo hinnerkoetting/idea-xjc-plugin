@@ -7,10 +7,12 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
-import de.oetting.idea.idea_xjc_plugin.jaxb2mavenplugin.PluginInformationExtraction;
 import de.oetting.idea.idea_xjc_plugin.jaxb2mavenplugin.MavenXjcSettings;
+import de.oetting.idea.idea_xjc_plugin.jaxb2mavenplugin.PluginInformationExtraction;
 import de.oetting.idea.idea_xjc_plugin.xjc.XjcExecution;
 import de.oetting.idea.idea_xjc_plugin.xjc.XjcStartOptions;
 import de.oetting.mavenmodels.Model;
@@ -21,7 +23,9 @@ import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,11 +70,14 @@ public class GenerateXsd extends AnAction {
     }
 
     private void collectOptionsFromPom(XjcStartOptions options, AnActionEvent e) {
-        VirtualFile baseDir = e.getProject().getBaseDir();
+        Module currentModule = ProjectRootManager.getInstance(e.getProject()).getFileIndex().getModuleForFile(getCurrentlyOpenedFile(e));
+        VirtualFile baseDir = currentModule.getModuleFile().getParent();
         File pom = new File(baseDir.getPath() + "/pom.xml");
         if (!pom.exists()) {
             LOGGER.info("Cannot read Properties from pom.xml. Values from pom.xml are used to set useful default values");
             return;
+        } else {
+            LOGGER.info("Analysing " + pom.getAbsolutePath() + " ...");
         }
         analysePom(options, pom, e);
     }
@@ -86,10 +93,12 @@ public class GenerateXsd extends AnAction {
     }
 
     private void analysePomXml(XjcStartOptions options, Model model, AnActionEvent e) {
-        for (Plugin plugin: model.getBuild().getPlugins().getPlugin()) {
-            if (isXjcPlugin(plugin)) {
-                MavenXjcSettings mavenSettings = analysePlugin(plugin);
-                applyMavenSettings(options, mavenSettings, e);
+        if (model.getBuild() != null && model.getBuild().getPlugins() != null) {
+            for (Plugin plugin : model.getBuild().getPlugins().getPlugin()) {
+                if (isXjcPlugin(plugin)) {
+                    MavenXjcSettings mavenSettings = analysePlugin(plugin);
+                    applyMavenSettings(options, mavenSettings, e);
+                }
             }
         }
     }
